@@ -1,0 +1,73 @@
+from flask import Flask
+import logging
+from datetime import datetime
+import time
+import random
+import newrelic.agent
+import os
+import threading
+import tempfile
+
+newrelic.agent.initialize('/home/ec2-user/app/newrelic.ini')
+app = Flask_Aluno_XX
+
+logging.basicConfig(
+    filename='/home/ec2-user/app/app.log',
+    level=logging.DEBUG,
+    format='%(asctime)s %(levelname)s %(message)s'
+)
+
+@app.route('/')
+@newrelic.agent.background_task()
+def home():
+    latency = random.uniform(0, 0.5)
+    time.sleep(latency)
+    logging.info(f'[{datetime.now()}] Request received: /, latency={latency:.3f}s, student_id=aluno_XX')
+    return 'Hello, Monitoring Course!'
+
+@app.route('/error')
+@newrelic.agent.background_task()
+def error():
+    logging.error(f'[{datetime.now()}] Error occurred: /error, student_id=aluno_XX')
+    return 'Error!', 500
+
+@app.route('/slow')
+@newrelic.agent.background_task()
+def slow():
+    latency = random.uniform(2, 5)
+    time.sleep(latency)
+    logging.warning(f'[{datetime.now()}] Slow request: /slow, latency={latency:.3f}s, student_id=aluno_XX')
+    return 'Slow Response'
+
+@app.route('/stress-cpu')
+@newrelic.agent.background_task()
+def stress_cpu():
+    def cpu_load():
+        for _ in range(1000000):
+            _ = 1.0 / random.uniform(1, 100)
+    threads = [threading.Thread(target=cpu_load) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    logging.info(f'[{datetime.now()}] CPU stress test, student_id=aluno_XX')
+    return 'CPU Stress Completed'
+
+@app.route('/stress-memory')
+@newrelic.agent.background_task()
+def stress_memory():
+    memory_hog = bytearray(512 * 1024 * 1024)  # 512 MB
+    logging.info(f'[{datetime.now()}] Memory stress test, student_id=aluno_XX')
+    return 'Memory Stress Completed'
+
+@app.route('/stress-disk')
+@newrelic.agent.background_task()
+def stress_disk():
+    with tempfile.NamedTemporaryFile(dir='/tmp', delete=False) as tmp:
+        for _ in range(1000):
+            tmp.write(os.urandom(1024 * 1024))  # 1 MB por iteração
+    logging.info(f'[{datetime.now()}] Disk stress test, student_id=aluno_XX')
+    return 'Disk Stress Completed'
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=80)
