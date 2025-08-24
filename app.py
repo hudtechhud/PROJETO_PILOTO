@@ -5,16 +5,17 @@ import random
 import string
 from datetime import datetime
 import time
+import subprocess
 
 # Configurar logger
-logging.basicConfig(level=logging.DEBUG, filename='app.log', format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, filename='/home/ec2-user/myapp/app.log', format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Inicializar Flask
 app = Flask(__name__)
 
 # Configurar New Relic
-newrelic.agent.initialize('newrelic.ini')
+newrelic.agent.initialize('/home/ec2-user/myapp/newrelic.ini')
 
 # Endpoint home para gerar log INFO e throughput básico
 @app.route('/', methods=['GET'])
@@ -115,6 +116,19 @@ def generate_all_logs():
         newrelic.agent.record_exception()
         logger.error(f"ERROR log: {str(e)}", exc_info=True, extra=log_metadata)
         return {"status": "error", "message": str(e)}, 500
+
+# Endpoint para stress no host
+@app.route('/stress', methods=['GET'])
+def generate_stress():
+    request_id = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+    log_metadata = newrelic.agent.get_linking_metadata()
+    
+    logger.info(f"Iniciando stress no host para request {request_id}", extra=log_metadata)
+    # Inicia stress em background para não bloquear a resposta (CPU load por 60s)
+    subprocess.Popen(['stress', '--cpu', '2', '--timeout', '60'])
+    newrelic.agent.record_custom_event('StressEvent', {'request_id': request_id, 'timestamp': datetime.now().isoformat()})
+    
+    return {"status": "success", "message": "Stress iniciado no host (CPU load por 60s)", "request_id": request_id}
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
